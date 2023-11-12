@@ -3,12 +3,9 @@ package main
 import (
     "net"
     "sync"
-    "time"
 	"fmt"
-    "github.com/Ash-xiaotian/chat-concurrent-server/chat"
-    "github.com/Ash-xiaotian/chat-concurrent-server/database"
-    "github.com/Ash-xiaotian/chat-concurrent-server/util"
-	"github.com/Ash-xiaotian/chat-concurrent-server/manager"
+    "chat-concurrent-server/chat"
+    "chat-concurrent-server/database"
 )
 
 const (
@@ -32,21 +29,20 @@ type User struct {
 var (
 	onlineMap sync.Map            // 保存在线用户
 	message   = make(chan string) // 消息通道
-	db        *sqlx.DB
 	wg        sync.WaitGroup // 在全局定义一个 WaitGroup
 )
 
 func main() {
 	// 初始化数据库连接
-	_, err := InitDB()
+	_, err := database.InitDB()
 	if err != nil {
 		fmt.Println("Failed to initialize DB:", err)
 		return
 	}
-	defer CloseDB()
+	defer database.CloseDB()
 
 	// 该协程用于转发消息，只要有消息来了，遍历map，给map每个成员都发送此消息
-	go Manager()
+	go chat.Manager()
 
 	// 开始监听导入连接
 	listener, err := net.Listen("tcp", listenAddress)
@@ -65,6 +61,6 @@ func main() {
 		}
 		
 		// 处理用户连接
-		go HandleConn(conn)
+		go chat.HandleConn(conn)
 	}
 }

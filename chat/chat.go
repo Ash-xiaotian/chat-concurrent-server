@@ -4,8 +4,10 @@ import (
     "net"
     "strings"
 	"fmt"
-    "github.com/yourusername/yourproject/database"
-    "github.com/yourusername/yourproject/util"
+	"time"
+    "chat-concurrent-server/database"
+    "chat-concurrent-server/util"
+	"chat-concurrent-server/manager"
 )
 
 // 客户端结构体
@@ -48,10 +50,10 @@ func HandleConn(conn net.Conn) {
 		x := strings.TrimSpace(string(buf[:n-1]))
 
 		if x == "1" {
-			cliAccount, cliName = Register(conn)
+			cliAccount, cliName = database.Register(conn)
 			break
 		} else if x == "2" {
-			cliAccount, cliName = Login(conn)
+			cliAccount, cliName = database.Login(conn)
 			break
 		} else {
 			conn.Write([]byte("无效的选择，请重新输入:\n"))
@@ -66,7 +68,7 @@ func HandleConn(conn net.Conn) {
 	cli := &Client{make(chan string), cliAccount, cliName}
 
 	// 把结构体添加到map
-	onlineMap.Store(cliAccount, cli)
+	database.onlineMap.Store(cliAccount, cli)
 
 	// 提示已进入聊天室，这个只能自己收到
 	conn.Write([]byte("----------您可以跟所有人聊天了!----------\n"))
@@ -75,11 +77,11 @@ func HandleConn(conn net.Conn) {
 	conn.Write([]byte("          offline：下线\n\n"))
 
 	// 新开一个协程，专门给客户端发送信息
-	wg.Add(1)
+	manager.wg.Add(1)
 	go WriteMsgToClient(cli, conn)
 
 	// 广播某个人在线，所有客户端都能收到消息
-	message <- ("[" + string(cliName) + "] 来到聊天室\n\n")
+	manager.message <- ("[" + string(cliName) + "] 来到聊天室\n\n")
 
 	// 对方是否主动退出
 	isQuit := make(chan bool)
@@ -88,9 +90,9 @@ func HandleConn(conn net.Conn) {
 	hasData := make(chan bool)
 
 	// 接收用户发送过来的数据
-	wg.Add(1)
+	manager.wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer manager.wg.Done()
 		buf := make([]byte, 2048)
 		for {
 			n, readErr := conn.Read(buf)
@@ -109,7 +111,7 @@ func HandleConn(conn net.Conn) {
 				ChangeUsername(cli, conn)
 			default:
 				conn.Write([]byte("---Message sent successfully!---\n\n"))
-				message <- SendMsg(cli, msg)
+				manager.message <- SendMsg(cli, msg)
 			}
 			hasData <- true // 代表有数据
 		}
@@ -123,8 +125,8 @@ func HandleConn(conn net.Conn) {
 		select {
 
 		case <-isQuit: // 下线
-			onlineMap.Delete(cliAccount)    // 将当前用户从map中移除
-			message <- (cli.Name + "已退出\n") // 广播下线
+			database.onlineMap.Delete(cliAccount)    // 将当前用户从map中移除
+			manager.message <- (cli.Name + "已退出\n") // 广播下线
 			return
 
 		case <-hasData: // 有消息
@@ -135,8 +137,8 @@ func HandleConn(conn net.Conn) {
 			conn.Write([]byte("提醒：您的连接将在10秒后超时。\n"))
 
 		case <-outTimer.C: // 超时
-			onlineMap.Delete(cliAccount)      // 将当前用户从map中移除
-			message <- (cli.Name + "已超时下线\n") // 广播下线
+			database.onlineMap.Delete(cliAccount)      // 将当前用户从map中移除
+			manager.message <- (cli.Name + "已超时下线\n") // 广播下线
 			return
 		}
 	}
@@ -147,7 +149,7 @@ func ShowOnlineUsers(conn net.Conn) {
 	conn.Write([]byte("User List:{\n"))
 
 	// 遍历map，给当前用户发送所有成员
-	onlineMap.Range(func(_, value interface{}) bool {
+	database.onlineMap.Range(func(_, value interface{}) bool {
 		tmp := value.(*Client)
 		msg := tmp.Account + "-" + tmp.Name + "\n"
 		conn.Write([]byte(msg))
@@ -159,13 +161,13 @@ func ShowOnlineUsers(conn net.Conn) {
 func ChangeUsername(cli *Client, conn net.Conn) {
 	// 更改用户名
 	conn.Write([]byte("请输入您的新用户名："))
-	newName := ReadInput(conn)
+	newName := util.ReadInput(conn)
 	oldName := cli.Name
 	sql := "UPDATE user SET username =? WHERE user_id=?"
-	_, err := db.Exec(sql, newName, cli.Account)
+	_, err := database.db.Exec(sql, newName, cli.Account)
 	if err != nil {
 		fmt.Println("UPDATE error =", err)
 	}
 	cli.Name = newName
-	message <- (oldName + " has changed the name to " + newName + "\n")
+	manager.message <- (oldName + " has changed the name to " + newName + "\n")
 }
