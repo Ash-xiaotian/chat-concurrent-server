@@ -1,20 +1,51 @@
 package chat
 
 import (
-    "net"
-    "strings"
+	"chat-concurrent-server/database"
+	"chat-concurrent-server/util"
 	"fmt"
+	"net"
+	"strings"
+	"sync"
 	"time"
-    "chat-concurrent-server/database"
-    "chat-concurrent-server/util"
-	"chat-concurrent-server/manager"
 )
 
 // 客户端结构体
 type Client struct {
-    C       chan string
-    Account string
-    Name    string
+	C       chan string
+	Account string
+	Name    string
+}
+
+var (
+	message   = make(chan string, 100) // 消息通道
+	wg        sync.WaitGroup           // 在全局定义一个 WaitGroup
+	onlineMap sync.Map                 // 保存在线用户
+
+)
+
+// 只要有消息来了，遍历map，给map每个成员都发送此消息
+func Manager() {
+	// 设置一个定时器，每隔一段时间检查一次message
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+
+		case msg := <-message:
+			// 遍历 map，给 map 每个成员都发送此消息
+			onlineMap.Range(func(_, value interface{}) bool {
+				cli := value.(*Client)
+				cli.C <- msg
+				return true
+			})
+
+		case <-ticker.C:
+			// 没有消息时的处理，可以选择休眠一段时间
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
 }
 
 // 向客户端发送消息
@@ -68,7 +99,7 @@ func HandleConn(conn net.Conn) {
 	cli := &Client{make(chan string), cliAccount, cliName}
 
 	// 把结构体添加到map
-	database.onlineMap.Store(cliAccount, cli)
+	onlineMap.Store(cliAccount, cli)
 
 	// 提示已进入聊天室，这个只能自己收到
 	conn.Write([]byte("----------您可以跟所有人聊天了!----------\n"))
@@ -77,11 +108,11 @@ func HandleConn(conn net.Conn) {
 	conn.Write([]byte("          offline：下线\n\n"))
 
 	// 新开一个协程，专门给客户端发送信息
-	manager.wg.Add(1)
+	wg.Add(1)
 	go WriteMsgToClient(cli, conn)
 
 	// 广播某个人在线，所有客户端都能收到消息
-	manager.message <- ("[" + string(cliName) + "] 来到聊天室\n\n")
+	message <- ("[" + string(cliName) + "] 来到聊天室\n\n")
 
 	// 对方是否主动退出
 	isQuit := make(chan bool)
@@ -90,16 +121,18 @@ func HandleConn(conn net.Conn) {
 	hasData := make(chan bool)
 
 	// 接收用户发送过来的数据
-	manager.wg.Add(1)
+	wg.Add(1)
 	go func() {
-		defer manager.wg.Done()
+		defer wg.Done()
 		buf := make([]byte, 2048)
 		for {
 			n, readErr := conn.Read(buf)
 			if readErr != nil {
-				fmt.Println("conn.Read error =", readErr)
+				fmt.Println("conn.Read data error =", readErr)
 			}
-
+			if n <= 0 {
+				continue
+			}
 			msg := strings.TrimSpace(string(buf[:n-1]))
 
 			switch msg {
@@ -111,7 +144,7 @@ func HandleConn(conn net.Conn) {
 				ChangeUsername(cli, conn)
 			default:
 				conn.Write([]byte("---Message sent successfully!---\n\n"))
-				manager.message <- SendMsg(cli, msg)
+				message <- SendMsg(cli, msg)
 			}
 			hasData <- true // 代表有数据
 		}
@@ -125,8 +158,8 @@ func HandleConn(conn net.Conn) {
 		select {
 
 		case <-isQuit: // 下线
-			database.onlineMap.Delete(cliAccount)    // 将当前用户从map中移除
-			manager.message <- (cli.Name + "已退出\n") // 广播下线
+			onlineMap.Delete(cliAccount)    // 将当前用户从map中移除
+			message <- (cli.Name + "已退出\n") // 广播下线
 			return
 
 		case <-hasData: // 有消息
@@ -137,8 +170,8 @@ func HandleConn(conn net.Conn) {
 			conn.Write([]byte("提醒：您的连接将在10秒后超时。\n"))
 
 		case <-outTimer.C: // 超时
-			database.onlineMap.Delete(cliAccount)      // 将当前用户从map中移除
-			manager.message <- (cli.Name + "已超时下线\n") // 广播下线
+			onlineMap.Delete(cliAccount)      // 将当前用户从map中移除
+			message <- (cli.Name + "已超时下线\n") // 广播下线
 			return
 		}
 	}
@@ -149,9 +182,9 @@ func ShowOnlineUsers(conn net.Conn) {
 	conn.Write([]byte("User List:{\n"))
 
 	// 遍历map，给当前用户发送所有成员
-	database.onlineMap.Range(func(_, value interface{}) bool {
+	onlineMap.Range(func(_, value interface{}) bool {
 		tmp := value.(*Client)
-		msg := tmp.Account + "-" + tmp.Name + "\n"
+		msg := tmp.Account + "-" + tmp.Name + "\n}\n"
 		conn.Write([]byte(msg))
 		return true
 	})
@@ -163,11 +196,7 @@ func ChangeUsername(cli *Client, conn net.Conn) {
 	conn.Write([]byte("请输入您的新用户名："))
 	newName := util.ReadInput(conn)
 	oldName := cli.Name
-	sql := "UPDATE user SET username =? WHERE user_id=?"
-	_, err := database.db.Exec(sql, newName, cli.Account)
-	if err != nil {
-		fmt.Println("UPDATE error =", err)
-	}
+	database.Changename(newName, cli.Account)
 	cli.Name = newName
-	manager.message <- (oldName + " has changed the name to " + newName + "\n")
+	message <- (oldName + " 已经改名为： " + newName + "\n")
 }

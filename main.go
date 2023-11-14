@@ -1,42 +1,19 @@
 package main
 
 import (
-    "net"
-    "sync"
+	"chat-concurrent-server/chat"
+	"chat-concurrent-server/database"
 	"fmt"
-    "chat-concurrent-server/chat"
-    "chat-concurrent-server/database"
+	"net"
 )
 
-const (
-	listenAddress  = ":8002"
-	dbMaxOpenConns = 10 // 数据库最大连接数
-	dbMaxIdleConns = 5  // 数据库最大空闲连接数
-	bcryptCost     = 10
-)
-
-type Client struct {
-	C       chan string // 用于发送数据的管道
-	Account string      // 用户名
-	Name    string      // 网络地址
-}
-type User struct {
-	User_id  string // 账号
-	Username string // 名字
-	Password string // 密码
-}
-
-var (
-	onlineMap sync.Map            // 保存在线用户
-	message   = make(chan string) // 消息通道
-	wg        sync.WaitGroup // 在全局定义一个 WaitGroup
-)
+const listenAddress = ":8002"
 
 func main() {
 	// 初始化数据库连接
 	_, err := database.InitDB()
 	if err != nil {
-		fmt.Println("Failed to initialize DB:", err)
+		fmt.Println("database.InitDB error:", err)
 		return
 	}
 	defer database.CloseDB()
@@ -56,10 +33,10 @@ func main() {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			fmt.Println("listener.Accept =", err)
+			fmt.Println("listener error", err)
 			continue
 		}
-		
+
 		// 处理用户连接
 		go chat.HandleConn(conn)
 	}
