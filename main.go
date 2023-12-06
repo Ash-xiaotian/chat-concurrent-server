@@ -1,43 +1,46 @@
 package main
 
 import (
-	"chat-concurrent-server/chat"
 	"chat-concurrent-server/database"
 	"fmt"
-	"net"
+	"chat-concurrent-server.go/chat"
+	"github.com/gin-gonic/gin"
 )
 
-const listenAddress = ":8002"
-
 func main() {
-	// 初始化数据库连接
+
+	//初始化数据库连接
 	_, err := database.InitDB()
 	if err != nil {
-		fmt.Println("database.InitDB error:", err)
+		fmt.Println("初始化数据库连接错误:", err)
 		return
 	}
 	defer database.CloseDB()
 
-	// 该协程用于转发消息，只要有消息来了，遍历map，给map每个成员都发送此消息
+	//该协程用于转发消息，只要有消息来了，遍历map，给map每个成员都发送此消息
 	go chat.Manager()
 
-	// 开始监听导入连接
-	listener, err := net.Listen("tcp", listenAddress)
-	if err != nil {
-		fmt.Println("net.Listen error:", err)
-		return
-	}
-	defer listener.Close()
+	conn := gin.Default()
+	conn.LoadHTMLGlob("view/*")
+	conn.GET("/start", func(c *gin.Context) {
+		c.HTML(200, "start.HTML", nil)
+	})
+	conn.GET("/login", func(c *gin.Context) {
+		c.HTML(200, "login.HTML", nil)
+	})
+	conn.GET("/register", func(c *gin.Context) {
+		c.HTML(200, "register.HTML", nil)
+	})
+	conn.GET("/chat", func(c *gin.Context) {
+		c.HTML(200, "chat.HTML", nil)
+	})
+	conn.GET("/ws", func(c *gin.Context) {
+		go chat.HandleConn(c.Writer, c.Request)
+	})
+	conn.POST("/login", database.Login)
+	conn.POST("/register", database.Register)
+	fmt.Println("服务器已启动，正在监听 http://127.0.0.1:8002")
+	// 运行 Gin 服务器,当它执行时，它会一直阻塞，监听来自客户端的请求
+	conn.Run(":8002")
 
-	// 主协程，循环阻塞等待用户连接
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			fmt.Println("listener error", err)
-			continue
-		}
-
-		// 处理用户连接
-		go chat.HandleConn(conn)
-	}
 }

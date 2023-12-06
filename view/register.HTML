@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>注册 - 简易聊天室</title>
+  <!-- 样式表 -->
+  <style>
+    /* 样式可以根据需要自行添加 */
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    #signup-box {
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    input {
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 8px;
+      border-radius: 3px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      padding: 8px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="signup-box">
+    <h2>注册 - 简易聊天室</h2>
+    <form>
+      <input type="text" id="userid" placeholder="账号" required>
+      <input type="text" id="username" placeholder="用户名" required>
+      <input type="password" id="password" placeholder="密码" required>
+      <input type="password" id="cfpassword" placeholder="确认密码" required>
+      <button type="button" onclick="signup()">注册</button>
+    </form>
+  </div>
+
+  <!-- JavaScript -->
+  <script>
+    // 注册函数
+    function signup() {
+      console.log('跳转至 register.HTML');
+      const userid = document.getElementById("userid").value;
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+      const cfpassword = document.getElementById("cfpassword").value;
+      fetch("/register", {
+        method: "POST",
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'userid=' + userid + '&username=' + username + '&password=' + password + '&cfpassword=' + cfpassword,
+      })
+        .then(response => response.text())
+        .then(data => {
+          if (data === 'success') {
+            window.location.href = 'login';
+          } else if (data=== 'duplicate') {
+            alert("该账号已被注册，请重新输入！");
+          } else if (data=== 'notmatch') {
+            alert("两次密码不一致，请重新输入！");
+          } else {
+            alert("发生了一些错误，请重试！");
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+        });
+    }
+  </script>
+</body>
+
+</html>

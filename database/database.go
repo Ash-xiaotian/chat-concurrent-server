@@ -1,11 +1,11 @@
 package database
 
 import (
-	"chat-concurrent-server/util"
+	"chat-concurrent-server/onlineusers"
 	"fmt"
-	"net"
-
+	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
+
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -16,39 +16,39 @@ const (
 	bcryptCost     = 10
 )
 
-// 用户结构体
-type User struct {
-	User_id  string
+// 客户端结构体
+type Client struct {
+	C        chan string
+	Userid   string
 	Username string
-	Password string
 }
 
-var db *sqlx.DB
+var (
+	db  *sqlx.DB
+	cli *Client
+)
 
 // 账号存入数据库
-func InsertSQL(user_id, username, password string, conn net.Conn) {
+func InsertSQL(userid, username, password string) {
 	// 使用 bcrypt 对密码进行哈希
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
 		fmt.Println("GenerateFromPassword error:", err)
-		conn.Write([]byte("\t密码处理失败\n"))
 		return
 	}
 
-	sql := "insert into user(user_id,username,password)values (?,?,?)"
-	_, err = db.Exec(sql, user_id, username, hashedPassword)
+	sql := "insert into user(userid,username,password)values (?,?,?)"
+	_, err = db.Exec(sql, userid, username, hashedPassword)
 	if err != nil {
 		fmt.Println("exec error:", err)
-		conn.Write([]byte("\t账号导入失败\n"))
 		return
 	}
-	fmt.Println(user_id + "账号导入成功")
 }
 
 // 初始化数据库连接
 func InitDB() (*sqlx.DB, error) {
 	var err error
-	db, err = sqlx.Open("mysql", "root:rommel@tcp(127.0.0.1:3306)/test")
+	db, err = sqlx.Open("mysql", "root:123456@tcp(127.0.0.1:3306)/sys")
 	if err != nil {
 		fmt.Println("sqlx.Open error:", err)
 		return db, err
@@ -75,66 +75,73 @@ func CloseDB() {
 	}
 }
 
-// 输入账号密码
-func Input(conn net.Conn) (string, string) {
-	conn.Write([]byte("请输入账号：\n"))
-	user_id := util.ReadInput(conn)
-
-	conn.Write([]byte("请输入密码：\n"))
-	password := util.ReadInput(conn)
-
-	return user_id, password
-}
-
 // 注册
-func Register(conn net.Conn) (string, string) {
-	var u User
-	for {
-		user_id, password := Input(conn)
-		sql := "SELECT * FROM user WHERE user_id= ?"
-		err := db.Get(&u, sql, user_id)
-		if err == nil {
-			conn.Write([]byte("\t该账号已被注册,请重新输入!\n"))
-			continue
-		} else {
-			fmt.Println(err)
-			conn.Write([]byte("请输入您的名称：\n"))
-			buf := make([]byte, 2048)
-			n, readErr := conn.Read(buf)
-			if readErr != nil {
-				fmt.Println("conn.Read Name error =", readErr)
-			}
-			username := string(buf[:n-1])
-			InsertSQL(user_id, username, password, conn)
-			conn.Write([]byte("注册成功！\n\n"))
-			return user_id, username
-		}
+func Register(conn *gin.Context) {
+
+	type User struct {
+		Userid   string `db:"userid"`
+		Password string `db:"password"`
+		Username string `db:"username"`
 	}
+	var u User
+	userid := conn.PostForm("userid")
+	username := conn.PostForm("username")
+	password := conn.PostForm("password")
+	cfpassword := conn.PostForm("cfpassword")
+	if password != cfpassword {
+		conn.String(200, "notmatch")
+		return
+	}
+	sql := "SELECT * FROM user WHERE userid=?"
+	err := db.Get(&u, sql, userid)
+	if err == nil {
+		conn.String(200, "duplicate")
+		return
+	}
+	InsertSQL(userid, username, password)
+	conn.String(200, "success")
 }
 
 // 登入
-func Login(conn net.Conn) (string, string) {
-	var u User
-	for {
-		user_id, password := Input(conn)
-		sql := "SELECT * FROM user WHERE user_id=?"
-		err := db.Get(&u, sql, user_id)
-		if err != nil {
-			fmt.Println("db.Get err:", err)
-			conn.Write([]byte("\t账号或密码有误，请重新输入!\n"))
-			continue
-		}
-
-		// 使用 bcrypt.CompareHashAndPassword 比较密码
-		if err = bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password)); err != nil {
-			fmt.Println("CompareHashAndPassword error:", err)
-			conn.Write([]byte("\t账号或密码有误，请重新输入!\n"))
-			continue
-		}
-		break
+func Login(conn *gin.Context) {
+	type User struct {
+		Userid   string `db:"userid"`
+		Password string `db:"password"`
+		Username string `db:"username"`
 	}
-	conn.Write([]byte("登入成功！\n\n"))
-	return u.User_id, u.Username
+	var u User
+	// 读取消息
+	userid := conn.PostForm("userid")
+	password := conn.PostForm("password")
+	sql := "SELECT * FROM user WHERE userid=?"
+	err := db.Get(&u, sql, userid)
+	if err != nil {
+		fmt.Println("db.Get err:", err)
+		// 发送消息
+		conn.String(200, "failure")
+		return
+	}
+
+	// 使用 bcrypt.CompareHashAndPassword 比较密码
+	if err = bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password)); err != nil {
+		fmt.Println("CompareHashAndPassword error:", err)
+		// 发送消息
+		conn.String(200, "failure")
+		return
+	}
+
+	// 检查用户是否已经在在线列表中，如果是则拒绝登录
+	if found := onlineusers.CheckUserOnline(userid); found {
+		conn.String(200, "duplicate")
+		return
+	}
+	conn.String(200, "success")
+	// 创建一个结构体
+	cli = &Client{make(chan string), u.Userid, u.Username}
+	onlineusers.AddUser(u.Userid) // 从在线列表中添加用户
+}
+func GetUser() *Client {
+	return cli
 }
 
 // 改名
@@ -145,3 +152,4 @@ func Changename(newName, Account string) {
 		fmt.Println("UPDATE error :", err)
 	}
 }
+

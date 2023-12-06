@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+ 
+<head>
+    <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
+    <title>TestWebsocket</title>
+    <body>
+        <p>服务器时间:</p>
+        <p id="Time">2022-03-02 20:00:00</p>
+     
+        <button onclick="LinkServer()">连接</button>
+     
+    </body>
+    <script type="text/javascript">
+        function LinkServer() {
+            // 声明连接
+            var Server_Com;
+            if ("WebSocket" in window) {
+                Server_Com = new WebSocket("ws://127.0.0.1:8002/getTime");
+                console.log("新建连接到->127.0.0.1:8002");
+            }
+ 
+            // 建立连接后发送
+            Server_Com.onopen = function() {
+ 
+                Server_Com.send("Hello Server!"); // Web Socket 已连接上，使用 send() 方法发送数据
+                console.log("已连接上服务器");
+            }
+ 
+            // 接收服务器消息
+            Server_Com.onmessage = function(event) {
+                var recv_msg = event.data;
+ 
+                if (recv_msg == "Hello Client!") {
+                    console.log("接收到服务器的问候: " + recv_msg); // 用于提示收到信息
+                } else {
+                    document.getElementById("Time").textContent = recv_msg; // 实时更新显示服务器发回的时间
+                    console.log("接收到服务器数据: " + recv_msg);
+                }
+            }
+        }
+    </script>
+</head>
+ 
+
+ 
+</html>

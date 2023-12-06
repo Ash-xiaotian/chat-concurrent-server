@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>登录 - 简易聊天室</title>
+  <!-- 样式表 -->
+  <style>
+    /* 样式可以根据需要自行添加 */
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    #login-box {
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    input {
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 8px;
+      border-radius: 3px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      padding: 8px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="login-box">
+    <h2>登录 - 简易聊天室</h2>
+    <form action="/login" method="post">
+      <input type="text" id="userid" placeholder="账号" required>
+      <input type="password" id="password" placeholder="密码" required>
+      <button type="button" onclick="login()">登录</button>
+    </form>
+  </div>
+
+  <!-- JavaScript -->
+  <script>
+    // 登录函数
+    function login() {
+      console.log('跳转至 login.html');
+      var userid = document.getElementById("userid").value;
+      var password = document.getElementById("password").value;
+
+      fetch('/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'userid=' + userid + '&password=' + password,
+      })
+        .then(response => response.text())
+        .then(data => {
+          if (data === 'success') {
+            window.location.href = 'chat';
+          } else if (data === 'duplicate') {
+            alert('账号已登录，请勿重复登录!');
+          } else if (data === 'failure') {
+            alert('账号或密码有误，请重新输入!');
+          } else {
+            alert('发生了一些错误，请重试！');
+          }
+        })
+        .catch(error => {
+          console.error('发生错误:', error);
+        });
+    }
+
+  </script>
+</body>
+
+</html>

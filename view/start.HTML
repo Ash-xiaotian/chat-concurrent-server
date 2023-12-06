@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>简易聊天室 - 开始</title>
+    <style>
+        /* 样式可以根据需要自行添加 */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #start-box {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        button {
+            padding: 8px 15px;
+            margin: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="start-box">
+        <h2>简易聊天室</h2>
+        <button onclick="LinkServer('login')">登录</button>
+        <button onclick="LinkServer('register')">注册</button>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        function LinkServer(event) {
+            console.log("start.HTML新建连接到->127.0.0.1:8002/start");
+            if (event === 'login') {
+                window.location.href = 'login';
+            } else if (event === 'register') {
+                window.location.href = 'register';
+            }
+        }
+
+
+    </script>
+</body>
+
+</html>

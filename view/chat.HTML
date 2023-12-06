@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>简易聊天室</title>
+  <!-- 样式表 -->
+  <style>
+    /* 样式可以根据需要自行添加 */
+    /* 消息显示区域 */
+    #messages {
+      height: 700px;
+      overflow-y: scroll;
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+
+    /* 输入框和发送按钮样式 */
+    #message-input {
+      width: 70%;
+      padding: 8px;
+      margin-right: 5px;
+    }
+
+    #send-btn {
+      padding: 8px 15px;
+      background-color: #1abb22;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    #send-btn:hover {
+      background-color: #1abb22;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="chat-box">
+    <div id="messages"></div>
+    <div>
+      <input type="text" id="message-input" placeholder="输入消息...">
+      <button id="send-btn">发送</button>
+    </div>
+  </div>
+
+  <!-- JavaScript -->
+  <script>
+    var ws
+    if (window["WebSocket"]) {
+      console.log('跳转至 chat.HTML');
+      ws = new WebSocket("ws://127.0.0.1:8002/ws"); // 替换为你的服务器地址和端口号
+      // 当有消息到来时，在界面上显示消息
+      ws.onmessage = function (event) {
+        var messages = document.getElementById('messages');
+        var message = document.createElement('div');
+        message.textContent = event.data;
+        messages.appendChild(message);
+        messages.scrollTop = messages.scrollHeight; // 滚动到最新消息
+      };
+
+      ws.onclose = function (event) {
+        alert('已下线'); // 在连接关闭时弹出提示框
+      };
+
+      // 发送消息
+      function sendMessage() {
+        var input = document.getElementById('message-input');
+        var message = input.value.trim(); // 去除消息前后的空格
+        if (message !== '') {
+          ws.send(message);
+          input.value = ''; // 清空输入框
+        } else {
+          alert('请输入消息内容！');
+        }
+      }
+
+      // 监听回车键发送消息
+      document.getElementById('message-input').addEventListener('keypress', function (event) {
+        if (event.key === 'Enter') {
+          sendMessage();
+        }
+      });
+
+      // 添加按钮点击事件监听
+      document.getElementById('send-btn').addEventListener('click', function () {
+        sendMessage();
+      });
+
+    } else {
+      var item = document.createElement("div");
+      item.innerHTML = "<b>Your browser does not support WebSockets.</b>";
+      appendLog(item);
+    }
+  </script>
+</body>
+
+</html>
