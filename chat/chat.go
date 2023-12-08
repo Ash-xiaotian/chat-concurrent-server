@@ -18,8 +18,9 @@ var (
 		HandshakeTimeout: 2 * time.Second, //握手超时时间
 		ReadBufferSize:   1024,            //读缓冲大小
 		WriteBufferSize:  1024,            //写缓冲大小
-		CheckOrigin:      func(r *http.Request) bool { return true },
-		Error:            func(w http.ResponseWriter, r *http.Request, status int, reason error) {},
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
 	}
 )
 
@@ -62,6 +63,34 @@ func WriteMsgToClient(cli *database.Client, conn *websocket.Conn, ctx context.Co
 			}
 		}
 	}
+}
+
+// 显示在线用户列表
+func ShowOnlineUsers(conn *websocket.Conn) {
+	conn.WriteMessage(websocket.TextMessage, []byte("------"+"在线用户:"))
+
+	// 遍历map，给当前用户发送所有成员
+	onlineMap.Range(func(_, value interface{}) bool {
+		tmp := value.(*database.Client)
+		msg := "------账号:" + tmp.Userid + " 姓名:" + tmp.Username + "------"
+		conn.WriteMessage(websocket.TextMessage, []byte(msg))
+		return true
+	})
+
+}
+
+// 更新数据库中的用户名并广播更改
+func ChangeUsername(cli *database.Client, conn *websocket.Conn) {
+	// 更改用户名
+	conn.WriteMessage(websocket.TextMessage, []byte("------请输入您的新用户名："))
+	_, newName, err := conn.ReadMessage()
+	if err != nil {
+		fmt.Println("rename err:", err)
+	}
+	oldName := cli.Username
+	database.Changename(string(newName), cli.Userid)
+	cli.Username = string(newName)
+	message <- (oldName + " 已经改名为： " + string(newName) + "\n")
 }
 
 // 处理用户连接（用户上线了的处理）
@@ -147,30 +176,4 @@ func HandleConn(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// 显示在线用户列表
-func ShowOnlineUsers(conn *websocket.Conn) {
-	conn.WriteMessage(websocket.TextMessage, []byte("------"+"在线用户:"))
 
-	// 遍历map，给当前用户发送所有成员
-	onlineMap.Range(func(_, value interface{}) bool {
-		tmp := value.(*database.Client)
-		msg := "------账号:"+tmp.Userid + " 姓名:" + tmp.Username +"------"
-		conn.WriteMessage(websocket.TextMessage, []byte(msg))
-		return true
-	})
-
-}
-
-// 更新数据库中的用户名并广播更改
-func ChangeUsername(cli *database.Client, conn *websocket.Conn) {
-	// 更改用户名
-	conn.WriteMessage(websocket.TextMessage, []byte("------请输入您的新用户名："))
-	_,newName , err := conn.ReadMessage()
-	if err != nil {
-		fmt.Println("rename err:",err)
-	}
-	oldName := cli.Username
-	database.Changename(string(newName), cli.Userid)
-	cli.Username = string(newName)
-	message <- (oldName + " 已经改名为： " + string(newName) + "\n")
-}

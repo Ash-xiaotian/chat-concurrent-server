@@ -28,23 +28,6 @@ var (
 	cli *Client
 )
 
-// 账号存入数据库
-func InsertSQL(userid, username, password string) {
-	// 使用 bcrypt 对密码进行哈希
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
-	if err != nil {
-		fmt.Println("GenerateFromPassword error:", err)
-		return
-	}
-
-	sql := "insert into user(userid,username,password)values (?,?,?)"
-	_, err = db.Exec(sql, userid, username, hashedPassword)
-	if err != nil {
-		fmt.Println("exec error:", err)
-		return
-	}
-}
-
 // 初始化数据库连接
 func InitDB() (*sqlx.DB, error) {
 	var err error
@@ -72,6 +55,36 @@ func InitDB() (*sqlx.DB, error) {
 func CloseDB() {
 	if db != nil {
 		db.Close()
+	}
+}
+
+// 账号存入数据库
+func InsertSQL(userid, username, password string) {
+	// 使用 bcrypt 对密码进行哈希
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
+	if err != nil {
+		fmt.Println("GenerateFromPassword error:", err)
+		return
+	}
+
+	sql := "insert into user(userid,username,password)values (?,?,?)"
+	_, err = db.Exec(sql, userid, username, hashedPassword)
+	if err != nil {
+		fmt.Println("exec error:", err)
+		return
+	}
+}
+
+func GetUser() *Client {
+	return cli
+}
+
+// 改名
+func Changename(newName, Account string) {
+	sql := "UPDATE user SET username =? WHERE user_id=?"
+	_, err := db.Exec(sql, newName, Account)
+	if err != nil {
+		fmt.Println("UPDATE error :", err)
 	}
 }
 
@@ -140,16 +153,5 @@ func Login(conn *gin.Context) {
 	cli = &Client{make(chan string), u.Userid, u.Username}
 	onlineusers.AddUser(u.Userid) // 从在线列表中添加用户
 }
-func GetUser() *Client {
-	return cli
-}
 
-// 改名
-func Changename(newName, Account string) {
-	sql := "UPDATE user SET username =? WHERE user_id=?"
-	_, err := db.Exec(sql, newName, Account)
-	if err != nil {
-		fmt.Println("UPDATE error :", err)
-	}
-}
 
