@@ -8,7 +8,8 @@ import (
 )
 
 func main() {
-
+	//运行后，打开http://127.0.0.1:8002/start
+	
 	//初始化数据库连接
 	_, err := database.InitDB()
 	if err != nil {
@@ -39,7 +40,7 @@ func main() {
 	})
 	conn.POST("/login", database.Login)
 	conn.POST("/register", database.Register)
-	fmt.Println("服务器已启动，正在监听 http://127.0.0.1:8002")
+	fmt.Println("服务器已启动，正在监听 http://127.0.0.1:8002/start")
 	// 运行 Gin 服务器,当它执行时，它会一直阻塞，监听来自客户端的请求
 	conn.Run(":8002")
 

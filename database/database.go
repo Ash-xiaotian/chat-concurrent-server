@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	dbMaxOpenConns = 10 // 数据库最大连接数
-	dbMaxIdleConns = 5  // 数据库最大空闲连接数
+	dbMaxOpenConns = 20 // 数据库最大连接数
+	dbMaxIdleConns = 10  // 数据库最大空闲连接数
 	bcryptCost     = 10
 )
 
